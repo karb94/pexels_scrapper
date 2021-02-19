@@ -1,0 +1,14 @@
+#! /bin/sh
+
+jar_file="$HOME/projects/pexels_scrapper/selenium-server-standalone.jar"
+
+setsid -f java -jar $jar_file -role hub >/dev/null 2>&1
+
+
+n_nodes=$(grep -c ^processor /proc/cpuinfo)
+n=$n_nodes
+while [ $n -gt 0 ]; 
+do 
+    setsid -f java -jar $jar_file -role node >/dev/null 2>&1
+    n=$(($n-1))
+done
