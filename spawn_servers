@@ -5,7 +5,10 @@ jar_file="$HOME/projects/pexels_scrapper/selenium-server-standalone.jar"
 setsid -f java -jar $jar_file -role hub >/dev/null 2>&1
 
 
-n_nodes=$(grep -c ^processor /proc/cpuinfo)
+n_cpus=$(grep -oP -m 1 'cpu cores\s*: \K\d' /proc/cpuinfo)
+# n_cpus=$(grep -c ^processor /proc/cpuinfo)
+echo "$n_cpus" nodes initialised
+n_nodes=$n_cpus
 n=$n_nodes
 while [ $n -gt 0 ]; 
 do 

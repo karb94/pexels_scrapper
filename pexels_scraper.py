@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import datetime
 import multiprocessing as mp
+import psutil
 from operator import methodcaller
 from functools import partial
 from itertools import chain
@@ -151,7 +152,7 @@ def create_drivers(hub_url='http://192.168.1.107:4444/wd/hub', n_drivers=None):
     chrome_options.add_argument('seleniumProtocol=WebDriver')
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
     if n_drivers is None:
-        n_drivers = mp.cpu_count()
+        n_drivers = (psutil.cpu_count(logical=False))
     create_driver = partial(webdriver.Remote)
     drivers = [webdriver.Remote(command_executor=hub_url,
                                 desired_capabilities=chrome_options.to_capabilities())

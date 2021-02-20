@@ -4,7 +4,7 @@ import pandas as pd
 import logging
 import sys
 from pathlib import Path
-import multiprocessing as mp
+import psutil
 
 import pexels_scraper
 
@@ -24,12 +24,13 @@ def main():
     data_file = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
 
     artists_urls = pd.read_csv(artists_urls_file, header=None, squeeze=True)
+    n_cpus = (psutil.cpu_count(logical=False))
     drivers = pexels_scraper.create_drivers()
 
     logging.info('Starting Pexels web scraper')
     logging.info(f'Reading artists urls from "{artists_urls_file}"')
     logging.info(f'Data will be saved to "{data_file}"')
-    logging.info(f'Using {mp.cpu_count()} CPU processor')
+    logging.info(f'Using {n_cpus} CPU processor')
 
     def save_to_file(df, file_path):
         file = Path(file_path)
