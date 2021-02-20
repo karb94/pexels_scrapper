@@ -172,7 +172,7 @@ def create_drivers(hub_url='http://192.168.1.107:4444/wd/hub', n_drivers=None):
         n_drivers = psutil.cpu_count(logical=True)
     logging.info(f'Using {n_drivers} CPU processor')
     global drivers
-    chromedriver = Path('./chromedriver')
+    chromedriver = str(Path('./chromedriver'))
     drivers = [webdriver.Chrome(executable_path=chromedriver, options=chrome_options)
                for _ in range(n_drivers)]
 
