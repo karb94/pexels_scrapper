@@ -16,10 +16,22 @@ from functools import partial
 from itertools import chain
 import time
 import re
+import sys
+from pathlib import Path
 import logging
 
-def get_collections_urls(artist_url, driver):
+format='%(asctime)s %(message)s'
+datefmt='%Y/%m/%d %H:%M:%S'
+logging.basicConfig(
+    filename='pexels_scraper.log',
+    format=format,
+    datefmt=datefmt,
+    level=logging.INFO
+)
+
+def get_collections_urls(artist_url):
     url = artist_url + '/collections/'
+    driver = drivers[0]
     driver.get(url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     artist_name = driver.find_element_by_tag_name('h1').text
@@ -34,7 +46,8 @@ def get_collections_urls(artist_url, driver):
     collections_urls =  'https://www.pexels.com' + collections_urls
     return artist_name, collections_urls
 
-def get_content_urls(url, driver):
+def get_content_urls(url):
+    driver = drivers[0]
     driver.get(url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     collection_name = soup.find('h1').get_text().strip('\n')
@@ -110,35 +123,39 @@ def get_stats(url, driver):
     
     return pd.Series(data)
 
-def parallel_apply(series_driver):
-    series, driver = series_driver
+def parallel_apply(n_driver, series):
+    # series, driver = series_driver
+    driver = drivers[n_driver]
     df = series.apply(get_stats, args=(driver,))
     return pd.concat([series, df], axis=1)
     
-def parallel_get_stats(urls, drivers):
-    urls_split = np.array_split(urls, len(drivers))
-    urls_split = [urls for urls in urls_split if len(urls) > 0]
-    urls_drivers = zip(urls_split, drivers)
-    pool = mp.Pool(len(drivers))
-    stats_split = pool.map(parallel_apply, urls_drivers)
+def parallel_get_stats(urls):
+    processes = len(drivers) if len(urls) > len(drivers) else len(urls)
+    urls_splits = np.array_split(urls, processes)
+    pool = mp.Pool(processes=processes)
+    jobs = []
+    for n_driver, urls_split in enumerate(urls_splits):
+        jobs.append(pool.apply_async(parallel_apply, (n_driver, urls_split)))
+    results = map(methodcaller('get'), jobs)
     pool.close()
     pool.join()
-    df = pd.concat(stats_split)
-    return df
+    return pd.concat(results)
 
-def get_collection_stats(collection_url, drivers):
-    collection_name, content_urls = get_content_urls(collection_url, drivers[0])
-    df = parallel_get_stats(content_urls, drivers)
+def get_collection_stats(collection_url):
+    collection_name, content_urls = get_content_urls(collection_url)
+    df = parallel_get_stats(content_urls)
     df.insert(loc=0, column='collection', value=collection_name)
     type_pattern = r'https://www.pexels.com/([^/]*)/'
     df.insert(loc=2, column='content type', value=df['content url'].str.extract(type_pattern))
     return df
 
-def get_artist_stats(artist_url, drivers):
-    artist_name, collections = get_collections_urls(artist_url, drivers[0])
-    f = partial(get_collection_stats, drivers=drivers)
-    df = pd.concat(map(f, collections))
+def get_artist_stats(artist_url):
+    artist_name, collections_urls = get_collections_urls(artist_url)
+    df = pd.concat(map(get_collection_stats, collections_urls))
+    df.insert(loc=1, column='collection url', value=df.index)
+    df.reset_index(drop=True, inplace=True)
     df.insert(loc=0, column='artist name', value=artist_name)
+    df.insert(loc=1, column='artist url', value=artist_url)
     return df
 
 def create_drivers(hub_url='http://192.168.1.107:4444/wd/hub', n_drivers=None):
@@ -152,9 +169,37 @@ def create_drivers(hub_url='http://192.168.1.107:4444/wd/hub', n_drivers=None):
     chrome_options.add_argument('seleniumProtocol=WebDriver')
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
     if n_drivers is None:
-        n_drivers = (psutil.cpu_count(logical=False))
-    create_driver = partial(webdriver.Remote)
-    drivers = [webdriver.Remote(command_executor=hub_url,
-                                desired_capabilities=chrome_options.to_capabilities())
+        n_drivers = psutil.cpu_count(logical=True)
+    logging.info(f'Using {n_drivers} CPU processor')
+    global drivers
+    drivers = [webdriver.Chrome(options=chrome_options)
                for _ in range(n_drivers)]
-    return drivers
+
+def save_to_file(df, file_path):
+    file = Path(file_path)
+    header = not file.exists()
+    df.to_csv(file, mode='a', header=header, index=False)
+
+def main():
+    artists_urls_file = sys.argv[1] if len(sys.argv) > 1 else 'artists_urls.csv'
+    data_file = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
+
+    artists_urls = pd.read_csv(artists_urls_file, header=None, squeeze=True)
+    n_cpus = psutil.cpu_count(logical=True)
+    create_drivers(n_drivers=n_cpus)
+
+    logging.info('Starting Pexels web scraper')
+    logging.info(f'Reading artists urls from "{artists_urls_file}"')
+    logging.info(f'Data will be saved to "{data_file}"')
+
+    for artist_url in artists_urls:
+        df = get_artist_stats(artist_url) 
+        save_to_file(df, data_file)
+
+    for driver in drivers:
+        driver.quit()
+
+
+if __name__ == '__main__':
+    main()
+

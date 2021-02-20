@@ -1,6 +1,6 @@
 #! /bin/sh
 
-jar_file="$HOME/projects/pexels_scrapper/selenium-server-standalone.jar"
+jar_file="selenium-server-standalone.jar"
 
 setsid -f java -jar $jar_file -role hub >/dev/null 2>&1
 
