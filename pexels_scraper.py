@@ -160,7 +160,7 @@ def get_artist_stats(artist_url):
 
 def create_drivers(hub_url='http://192.168.1.107:4444/wd/hub', n_drivers=None):
     chrome_options = webdriver.ChromeOptions()
-    chrome_options.headless = False
+    chrome_options.headless = True
     chrome_options.javascriptEnabled = True
     chrome_options.browserTimeout = 0
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -186,7 +186,6 @@ def main():
 
     artists_urls = pd.read_csv(artists_urls_file, header=None, squeeze=True)
     n_cpus = psutil.cpu_count(logical=True)
-    n_cpus = 1
     create_drivers(n_drivers=n_cpus)
 
     logging.info('Starting Pexels web scraper')
