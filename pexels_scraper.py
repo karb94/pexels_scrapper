@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 import logging
 
-format='%(asctime)s %(message)s'
+format='%(asctime)s    %(message)s'
 datefmt='%Y/%m/%d %H:%M:%S'
 logging.basicConfig(
     filename='pexels_scraper.log',
@@ -35,7 +35,7 @@ def get_collections_urls(artist_url):
     driver.get(url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     artist_name = driver.find_element_by_tag_name('h1').text
-    logging.info(f'Fetching data for {artist_name}:')
+    logging.info(f'Collections from {artist_name}:')
     collections = soup.find_all('a', {'class': 'discover__collections__collection'})
     collections_dir = map(methodcaller('get', 'href'), collections)
     collection_title_class = 'discover__collections__collection__content__title'
@@ -51,7 +51,7 @@ def get_content_urls(url):
     driver.get(url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     collection_name = soup.find('h1').get_text().strip('\n')
-    logging.info(f'Fetching data for {collection_name} collection...')
+    logging.info(f'    {collection_name}')
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     
     photo_pattern = re.compile('\d+(?=\sphoto)')
@@ -160,7 +160,7 @@ def get_artist_stats(artist_url):
 
 def create_drivers(hub_url='http://192.168.1.107:4444/wd/hub', n_drivers=None):
     chrome_options = webdriver.ChromeOptions()
-    chrome_options.headless = True
+    chrome_options.headless = False
     chrome_options.javascriptEnabled = True
     chrome_options.browserTimeout = 0
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -186,6 +186,7 @@ def main():
 
     artists_urls = pd.read_csv(artists_urls_file, header=None, squeeze=True)
     n_cpus = psutil.cpu_count(logical=True)
+    n_cpus = 1
     create_drivers(n_drivers=n_cpus)
 
     logging.info('Starting Pexels web scraper')
