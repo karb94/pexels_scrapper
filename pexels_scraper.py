@@ -146,8 +146,9 @@ def get_content_stats(driver, content_url):
 def apply_to_split(function, split):
     driver = create_driver()
     f = partial(function, driver)
-    not_empty = lambda array: array.size!=0
-    result = pd.concat(filter(not_empty, map(f, split)))
+    # not_empty = lambda array: array.size!=0
+    # result = pd.concat(filter(not_empty, map(f, split)))
+    result = pd.concat(map(f, split))
     driver.quit()
     return result
 
