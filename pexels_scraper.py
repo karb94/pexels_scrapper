@@ -157,19 +157,14 @@ def parallel_apply(function, array, pool):
     jobs = []
     for split in splits:
         jobs.append(pool.apply_async(apply_to_split, (function, split)))
-    return pd.concat(map(methodcaller('get'), jobs)
+    return pd.concat(map(methodcaller('get'), jobs))
 
 def main():
-
     artists_urls_file = sys.argv[1] if len(sys.argv) > 1 else 'artists_urls.csv'
     data_file = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
     artists_urls_file = 'artists_urls.csv'
     data = {}
     artists_urls = np.loadtxt(artists_urls_file, dtype=str)
-
-    def initializer():
-        global driver
-        driver = create_driver()
 
     logging.info(f'Using {n_logical_cores} CPU processors')
     pool = mp.Pool(processes=n_logical_cores)
