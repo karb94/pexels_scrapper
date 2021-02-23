@@ -65,8 +65,7 @@ def get_content_urls(driver, collection_url):
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     collection_name = soup.find('h1').get_text().strip('\n')
     print('Collection:', collection_name, end='...')
-    artist_xpath = '/html/body/div[1]/div[3]/div[1]/p[2]/a/span'
-    artist_name = driver.find_element_by_xpath(artist_xpath).text
+    artist_name = driver.find_element_by_tag_name('span').text
     logging.info(f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -172,7 +171,7 @@ def main():
     logging.info(f'Using {n_logical_cores} CPU processors')
     pool = mp.Pool(processes=n_logical_cores)
     
-    collections = parallel_apply(get_collections_urls, artists_urls, pool)
+    collections = parallel_apply(get_collections_urls, artists_urls[20:24], pool)
     logging.info('Finished fetching collections')
     content = parallel_apply(get_content_urls, collections['collection url'],
                              pool, n_splits=4*n_logical_cores)
