@@ -171,7 +171,7 @@ def main():
     logging.info(f'Using {n_logical_cores} CPU processors')
     pool = mp.Pool(processes=n_logical_cores)
     
-    collections = parallel_apply(get_collections_urls, artists_urls[20:24], pool)
+    collections = parallel_apply(get_collections_urls, artists_urls, pool)
     logging.info('Finished fetching collections')
     content = parallel_apply(get_content_urls, collections['collection url'],
                              pool, n_splits=4*n_logical_cores)
