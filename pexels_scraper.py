@@ -74,7 +74,6 @@ def get_content_urls(driver, collection_url):
     artist_name = driver.find_element_by_tag_name('span').text
     logger.info(f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
 
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
     old_scroll_height = 0
     new_scroll_height = driver.execute_script("return document.body.scrollHeight;")  
     while old_scroll_height < new_scroll_height:
@@ -83,6 +82,9 @@ def get_content_urls(driver, collection_url):
         time.sleep(1)
         new_scroll_height = driver.execute_script("return document.body.scrollHeight;")  
 
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    video_class = 'js-photo-link js-photo-item__link photo-item__link'
+    photo_class = 'js-photo-link photo-item__link'
     photos = soup.find_all('a', {'class': photo_class})
     videos = soup.find_all('a', {'class': video_class})
     videos_dirs = list(map(methodcaller('get', 'href'),  videos))
