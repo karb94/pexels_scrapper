@@ -52,7 +52,6 @@ def get_collections_urls(driver, artist_url):
     matches = soup.find_all('a', {'class': 'discover__collections__collection'})
     not_likes = lambda collection: 'likes' not in collection
     collections_dirs = list(filter(not_likes, map(methodcaller('get', 'href'), matches)))
-    collections_dirs = 
     data = {
         'artist name': [artist_name] * len(collections_dirs),
         'collection url': collections_dirs
