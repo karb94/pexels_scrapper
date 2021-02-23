@@ -20,14 +20,20 @@ import sys
 from pathlib import Path
 import logging
 
-format='%(asctime)s    %(message)s'
-datefmt='%Y/%m/%d %H:%M:%S'
-logging.basicConfig(
-    filename='pexels_scraper.log',
-    format=format,
-    datefmt=datefmt,
-    level=logging.INFO
-)
+logs_dir = Path('./logs')
+logs_dir.mkdir(exist_ok=True)
+
+def setup_logger(name):
+    log_file = logs_dir / (name + '.log')
+    handler = logging.FileHandler(log_file)        
+    logfmt='[%(asctime)s]  %(message)s'
+    datefmt='%Y/%m/%d %H:%M:%S'
+    formatter = logging.Formatter(logfmt, datefmt)
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+    return logger
 
 n_logical_cores = psutil.cpu_count(logical=False)
 
@@ -48,7 +54,7 @@ def get_collections_urls(driver, artist_url):
     driver.get(url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     artist_name = driver.find_element_by_tag_name('h1').text
-    logging.info(f'COLLECTIONS from "{artist_name}":')
+    logger.info(f'COLLECTIONS from "{artist_name}":')
     matches = soup.find_all('a', {'class': 'discover__collections__collection'})
     not_likes = lambda collection: 'likes' not in collection
     collections_dirs = list(filter(not_likes, map(methodcaller('get', 'href'), matches)))
@@ -67,7 +73,7 @@ def get_content_urls(driver, collection_url):
     collection_name = soup.find('h1').get_text().strip('\n')
     print('Collection:', collection_name, end='...')
     artist_name = driver.find_element_by_tag_name('span').text
-    logging.info(f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
+    logger.info(f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     photo_pattern = re.compile('\d+(?=\sphoto)')
@@ -101,7 +107,7 @@ def get_content_urls(driver, collection_url):
     index = [collection_url] * len(content_dirs)
     df = pd.DataFrame(data, index=index)
     df['content url'] = 'https://www.pexels.com' + df['content url']
-    logging.info(f'GOT CONTENT from "{artist_name}" in "{collection_name}" collection')
+    logger.info(f'GOT CONTENT from "{artist_name}" in "{collection_name}" collection')
     return df
 
 def to_number(string):
@@ -162,23 +168,30 @@ def parallel_apply(function, array, pool, n_splits=None):
         jobs.append(pool.apply_async(apply_to_split, (function, split)))
     return pd.concat(map(methodcaller('get'), jobs))
 
+def setup_process_logger():
+    log_name = mp.current_process().name
+    global logger
+    logger = setup_logger(log_name)
+    logger.info(f'Processes {log_name} initialised')
+
 def main():
+    main_logger = setup_logger('main')
     artists_urls_file = sys.argv[1] if len(sys.argv) > 1 else 'artists_urls.csv'
     data_file = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
     artists_urls_file = 'artists_urls.csv'
     data = {}
     artists_urls = np.loadtxt(artists_urls_file, dtype=str)
 
-    logging.info(f'Using {n_logical_cores} CPU processors')
-    pool = mp.Pool(processes=n_logical_cores)
-    
+    main_logger.info(f'Using {n_logical_cores} CPU processors')
+    pool = mp.Pool(processes=n_logical_cores, initializer=setup_process_logger)
+
     collections = parallel_apply(get_collections_urls, artists_urls, pool)
-    logging.info('Finished fetching collections')
+    main_logger.info('Finished fetching collections')
     content = parallel_apply(get_content_urls, collections['collection url'],
                              pool, n_splits=4*n_logical_cores)
-    logging.info('Finished fetching content')
+    main_logger.info('Finished fetching content')
     stats = parallel_apply(get_content_stats, content['content url'], pool)
-    logging.info('Finished gathering content stats')
+    main_logger.info('Finished gathering content stats')
     pool.close()
     pool.join()
     final_df = (
