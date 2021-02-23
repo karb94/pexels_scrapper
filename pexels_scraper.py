@@ -65,7 +65,9 @@ def get_content_urls(driver, collection_url):
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     collection_name = soup.find('h1').get_text().strip('\n')
     print('Collection:', collection_name, end='...')
-    logging.info(f'CONTENT from "{collection_name}" collection')
+    artist_xpath = '/html/body/div[1]/div[3]/div[1]/p[2]/a/span'
+    artist_name = driver.find_element_by_xpath(artist_xpath).text
+    logging.info(f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     photo_pattern = re.compile('\d+(?=\sphoto)')
@@ -99,6 +101,7 @@ def get_content_urls(driver, collection_url):
     index = [collection_url] * len(content_dirs)
     df = pd.DataFrame(data, index=index)
     df['content url'] = 'https://www.pexels.com' + df['content url']
+    logging.info(f'GOT CONTENT from "{artist_name}" in "{collection_name}" collection')
     return df
 
 def to_number(string):
