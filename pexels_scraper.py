@@ -146,14 +146,13 @@ def get_content_stats(driver, content_url):
 def apply_to_split(function, split):
     driver = create_driver()
     f = partial(function, driver)
-    # not_empty = lambda array: array.size!=0
-    # result = pd.concat(filter(not_empty, map(f, split)))
     result = pd.concat(map(f, split))
     driver.quit()
     return result
 
-def parallel_apply(function, array, pool):
-    n_splits = n_logical_cores if len(array) > n_logical_cores else len(array)
+def parallel_apply(function, array, pool, n_splits=None):
+    if n_splits is None:
+        n_splits = n_logical_cores if len(array) > n_logical_cores else len(array)
     splits = np.array_split(array, n_splits)
     jobs = []
     for split in splits:
@@ -172,7 +171,8 @@ def main():
     
     collections = parallel_apply(get_collections_urls, artists_urls, pool)
     logging.info('Finished fetching collections')
-    content = parallel_apply(get_content_urls, collections['collection url'], pool)
+    content = parallel_apply(get_content_urls, collections['collection url'],
+                             pool, n_splits=4*n_logical_cores)
     logging.info('Finished fetching content')
     stats = parallel_apply(get_content_stats, content['content url'], pool)
     logging.info('Finished gathering content stats')
