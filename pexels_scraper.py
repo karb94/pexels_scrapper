@@ -71,33 +71,20 @@ def get_content_urls(driver, collection_url):
     driver.get(collection_url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     collection_name = soup.find('h1').get_text().strip('\n')
-    print('Collection:', collection_name, end='...')
     artist_name = driver.find_element_by_tag_name('span').text
     logger.info(f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    photo_pattern = re.compile('\d+(?=\sphoto)')
-    video_pattern = re.compile('\d+(?=\svideo)')
-    photo_pattern = re.compile('\d+(?=\sphoto)')
-    collection_info = soup.find_all('p', {'class': 'title-centered__more'})
-    match = re.search(photo_pattern, collection_info[-1].get_text())
-    n_photos = 0 if match is None else int(match.group(0))
-    match = re.search(video_pattern, collection_info[-1].get_text())
-    n_videos = 0 if match is None else int(match.group(0))
+    old_scroll_height = 0
+    new_scroll_height = driver.execute_script("return document.body.scrollHeight;")  
+    while old_scroll_height < new_scroll_height:
+        old_scroll_height = new_scroll_height
+        driver.execute_script(f"window.scrollTo(0, {old_scroll_height});")  
+        time.sleep(1)
+        new_scroll_height = driver.execute_script("return document.body.scrollHeight;")  
 
-    video_class = 'js-photo-link js-photo-item__link photo-item__link'
-    photo_class = 'js-photo-link photo-item__link'
-    photos_count = 0
-    videos_count = 0
-    while  not (photos_count >= n_photos and videos_count >= n_videos):
-        scroll_height = driver.execute_script("return document.body.scrollHeight;")  
-        driver.execute_script("window.scrollTo(0, {scroll_distance});".format(scroll_distance=scroll_height))  
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        photos = soup.find_all('a', {'class': photo_class})
-        videos = soup.find_all('a', {'class': video_class})
-        photos_count = len(photos)
-        videos_count = len(videos)
-
+    photos = soup.find_all('a', {'class': photo_class})
+    videos = soup.find_all('a', {'class': video_class})
     videos_dirs = list(map(methodcaller('get', 'href'),  videos))
     content_dirs = list(map(methodcaller('get', 'href'), chain(photos, videos)))
     data = {
