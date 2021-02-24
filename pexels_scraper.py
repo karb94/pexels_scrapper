@@ -14,6 +14,7 @@ import psutil
 from operator import methodcaller
 from functools import partial
 from itertools import chain
+import math
 import time
 import re
 import sys
@@ -115,6 +116,7 @@ def to_number(string):
     return number
 
 def get_content_stats(driver, content_url):
+    logger.info('FETCHING stats...')
     driver.get(content_url)
     xpath = {
         'button': '//*[@id="photo-page-body"]/div/div/section[1]/div[1]/button[2]',
@@ -139,6 +141,7 @@ def get_content_stats(driver, content_url):
         'likes': [to_number(get_str_from_xpath(xpath['likes']))],
         'upload date': [get_date(get_str_from_xpath(xpath['upload date']))]
     }
+    logger.info('DONE')
     return pd.DataFrame(data, index=[content_url])
 
 def apply_to_split(function, split):
@@ -150,7 +153,7 @@ def apply_to_split(function, split):
 
 def parallel_apply(function, array, pool, n_splits=None):
     if n_splits is None:
-        n_splits = n_logical_cores if len(array) > n_logical_cores else len(array)
+        n_splits = 4*n_logical_cores if len(array) > 4*n_logical_cores else len(array)
     splits = np.array_split(array, n_splits)
     jobs = []
     for split in splits:
@@ -166,7 +169,8 @@ def setup_process_logger():
 def main():
     main_logger = setup_logger('main')
     artists_urls_file = sys.argv[1] if len(sys.argv) > 1 else 'artists_urls.csv'
-    data_file = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
+    data_filename = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
+    data_path = Path('.') / data_filename
     artists_urls_file = 'artists_urls.csv'
     data = {}
     artists_urls = np.loadtxt(artists_urls_file, dtype=str)
@@ -174,21 +178,28 @@ def main():
     main_logger.info(f'Using {n_logical_cores} CPU processors')
     pool = mp.Pool(processes=n_logical_cores, initializer=setup_process_logger)
 
-    collections = parallel_apply(get_collections_urls, artists_urls, pool)
-    main_logger.info('Finished fetching collections')
-    content = parallel_apply(get_content_urls, collections['collection url'],
-                             pool, n_splits=4*n_logical_cores)
-    main_logger.info('Finished fetching content')
-    stats = parallel_apply(get_content_stats, content['content url'], pool)
-    main_logger.info('Finished gathering content stats')
+    n_splits = math.ceil(len(artists_urls[-5:]) / 5)
+    artists_splits = np.array_split(artists_urls[-5:], n_splits)
+    for artists_split in artists_splits:
+        main_logger.info(f'SCRAPING the following artists:\n{artists_split}')
+        collections = parallel_apply(get_collections_urls, artists_split, pool)
+        main_logger.info('FINISHED scraping for collections urls')
+        content = parallel_apply(get_content_urls,
+                                 collections['collection url'], pool)
+        main_logger.info('FINISHED scraping for content urls')
+        stats = parallel_apply(get_content_stats, content['content url'], pool)
+        main_logger.info('FINISHED scraping content stats')
+        joined_df = (
+            collections
+            .join(content, on='collection url', how='right')
+            .join(stats, on='content url', how='left')
+         )
+        header = False if data_path.exists() else True
+        main_logger.info(f'SAVING data to "{str(data_path)}"')
+        joined_df.to_csv(data_path, header=header, mode='a')
+
     pool.close()
     pool.join()
-    final_df = (
-        collections
-        .join(content, on='collection url', how='right')
-        .join(stats, on='content url', how='left')
-     )
-    final_df.to_csv(data_file)
 
 if __name__ == '__main__':
     main()
