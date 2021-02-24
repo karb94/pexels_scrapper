@@ -178,8 +178,8 @@ def main():
     main_logger.info(f'Using {n_logical_cores} CPU processors')
     pool = mp.Pool(processes=n_logical_cores, initializer=setup_process_logger)
 
-    n_splits = math.ceil(len(artists_urls[-5:]) / 5)
-    artists_splits = np.array_split(artists_urls[-5:], n_splits)
+    n_splits = math.ceil(len(artists_urls) / 5)
+    artists_splits = np.array_split(artists_urls, n_splits)
     for artists_split in artists_splits:
         main_logger.info(f'SCRAPING the following artists:\n{artists_split}')
         collections = parallel_apply(get_collections_urls, artists_split, pool)
