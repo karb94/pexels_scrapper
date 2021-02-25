@@ -186,6 +186,9 @@ def main():
     for artists_split in artists_splits:
         main_logger.info(f'SCRAPING the following artists:\n{artists_split}')
         collections = parallel_apply(get_collections_urls, artists_split, pool)
+        if len(collections) == 0:
+            main_logger.info('No collections in this split')
+            continue
         main_logger.info('FINISHED scraping for collections urls')
         content = parallel_apply(get_content_urls,
                                  collections['collection url'], pool)
