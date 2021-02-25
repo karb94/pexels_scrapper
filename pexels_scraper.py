@@ -51,8 +51,8 @@ def create_driver():
     return webdriver.Chrome(options=chrome_options)
 
 def get_collections_urls(driver, artist_url):
-    url = artist_url + '/collections/'
-    driver.get(url)
+    collections_url = artist_url + '/collections/'
+    driver.get(collections_url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     artist_name = driver.find_element_by_tag_name('h1').text
     logger.info(f'COLLECTIONS from "{artist_name}":')
@@ -171,9 +171,12 @@ def main():
     artists_urls_file = sys.argv[1] if len(sys.argv) > 1 else 'artists_urls.csv'
     data_filename = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
     data_path = Path('.') / data_filename
-    artists_urls_file = 'artists_urls.csv'
     data = {}
     artists_urls = np.loadtxt(artists_urls_file, dtype=str)
+    if data_path.exists():
+        df = pd.read_csv(str(data_path))
+        completed = df['artist url'].unique()
+        artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
     main_logger.info(f'Using {n_logical_cores} CPU processors')
     pool = mp.Pool(processes=n_logical_cores, initializer=setup_process_logger)
@@ -194,6 +197,7 @@ def main():
             .join(content, on='collection url', how='right')
             .join(stats, on='content url', how='left')
          )
+        joined_df.index.name = 'artist url'
         header = False if data_path.exists() else True
         main_logger.info(f'SAVING data to "{str(data_path)}"')
         joined_df.to_csv(data_path, header=header, mode='a')
