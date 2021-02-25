@@ -147,6 +147,7 @@ def get_content_stats(driver, content_url):
 def apply_to_split(function, split):
     logger.info(f'SPLIT:\n{split}')
     driver = create_driver()
+    logger.info('WEB DRIVER initialised')
     f = partial(function, driver)
     result = pd.concat(map(f, split))
     driver.quit()
