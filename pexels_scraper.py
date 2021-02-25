@@ -145,6 +145,7 @@ def get_content_stats(driver, content_url):
     return pd.DataFrame(data, index=[content_url])
 
 def apply_to_split(function, split):
+    logger.info(f'SPLIT:\n{split}')
     driver = create_driver()
     f = partial(function, driver)
     result = pd.concat(map(f, split))
