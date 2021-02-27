@@ -27,12 +27,12 @@ logs_dir.mkdir(exist_ok=True)
 def setup_logger(name):
     log_file = logs_dir / (name + '.log')
     handler = logging.FileHandler(log_file)        
-    logfmt='[%(asctime)s]  %(message)s'
+    logfmt='[%(asctime)s] %(levelname)s: %(message)s'
     datefmt='%Y/%m/%d %H:%M:%S'
     formatter = logging.Formatter(logfmt, datefmt)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.INFO)
     logger.addHandler(handler)
     return logger
 
