@@ -150,6 +150,7 @@ def apply_to_split(function, split):
         try:
             driver = create_driver()
             logger.info('WEB DRIVER initialised')
+            break
         except:
             logger.info('TIMOUT ERROR')
             logger.exception('')
