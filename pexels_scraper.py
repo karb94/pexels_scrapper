@@ -32,7 +32,7 @@ def setup_logger(name):
     formatter = logging.Formatter(logfmt, datefmt)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.WARNING)
     logger.addHandler(handler)
     return logger
 
@@ -146,8 +146,13 @@ def get_content_stats(driver, content_url):
 
 def apply_to_split(function, split):
     logger.info(f'SPLIT:\n{split}')
-    driver = create_driver()
-    logger.info('WEB DRIVER initialised')
+    while True:
+        try:
+            driver = create_driver()
+            logger.info('WEB DRIVER initialised')
+        except:
+            logger.info('TIMOUT ERROR')
+            logger.exception('')
     f = partial(function, driver)
     result = pd.concat(map(f, split))
     driver.quit()
