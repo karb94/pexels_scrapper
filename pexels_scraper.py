@@ -128,7 +128,7 @@ def get_content_stats(driver, content_url):
     }
     while True:
         try:
-            (webDriverWait(driver, 10)
+            (WebDriverWait(driver, 10)
              .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
              .click())
             break
