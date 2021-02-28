@@ -5,7 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (NoSuchElementException,
+    TimeoutException, ElementClickInterceptedException)
 import pandas as pd
 import numpy as np
 import datetime
@@ -132,7 +133,7 @@ def get_content_stats(driver, content_url):
              .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
              .click())
             break
-        except TimeoutException:
+        except ElementClickInterceptedException:
             logger.WARNING('Info button not clickable for more than 10s')
             logger.exception('')
             driver.get('about:blank')
