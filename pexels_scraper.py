@@ -5,7 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException 
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import pandas as pd
 import numpy as np
 import datetime
@@ -126,8 +126,19 @@ def get_content_stats(driver, content_url):
         'downloads': '//*[@id="photo-page-body"]/div/div/section[1]/div[2]/div/div[1]/div[2]/div[3]/div/div[1]/div',
         'upload date': '//*[@id="photo-page-body"]/div/div/section[1]/div[2]/div/div[2]/div[1]/div[2]/div/small'
     }
-    WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, xpath['button']))).click()
-    WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
+    while True:
+        try:
+            (webDriverWait(driver, 10)
+             .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
+             .click())
+            break
+        except TimeoutException:
+            logger.WARNING('Info button not clickable for more than 10s')
+            logger.exception('')
+            driver.get('about:blank')
+            time.sleep(2)
+            driver.get(content_url)
+    WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
     get_str_from_xpath = lambda xpath: driver.find_element_by_xpath(xpath).text
     get_date = lambda string: datetime.datetime.strptime(string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
     try:
@@ -152,7 +163,7 @@ def apply_to_split(function, split):
             logger.info('WEB DRIVER initialised')
             break
         except:
-            logger.info('TIMOUT ERROR')
+            logger.info('TIMEOUT ERROR')
             logger.exception('')
     f = partial(function, driver)
     result = pd.concat(map(f, split))
