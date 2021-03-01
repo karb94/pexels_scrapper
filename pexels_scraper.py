@@ -135,7 +135,7 @@ def get_content_stats(driver, content_url):
             WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
             break
         except (ElementClickInterceptedException, TimeoutException) as e :
-            logger.WARNING(f'Warning, exception: {e}')
+            logger.warning(f'Warning, exception: {e}')
             logger.exception(f'Exception: {e}')
             driver.get('about:blank')
             time.sleep(2)
