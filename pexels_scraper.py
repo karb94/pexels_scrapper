@@ -132,14 +132,14 @@ def get_content_stats(driver, content_url):
             (WebDriverWait(driver, 10)
              .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
              .click())
+            WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
             break
-        except ElementClickInterceptedException:
-            logger.WARNING('Info button not clickable for more than 10s')
-            logger.exception('')
+        except (ElementClickInterceptedException, TimeoutException) as e :
+            logger.WARNING(f'Warning, exception: {e}')
+            logger.exception(f'Exception: {e}')
             driver.get('about:blank')
             time.sleep(2)
             driver.get(content_url)
-    WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
     get_str_from_xpath = lambda xpath: driver.find_element_by_xpath(xpath).text
     get_date = lambda string: datetime.datetime.strptime(string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
     try:
