@@ -117,7 +117,7 @@ def to_number(string):
     return number
 
 def get_content_stats(driver, content_url):
-    logger.info('FETCHING stats...')
+    logger.info(f'SCRAPING stats from {content_url}')
     driver.get(content_url)
     xpath = {
         'button': '//*[@id="photo-page-body"]/div/div/section[1]/div[1]/button[2]',
@@ -127,18 +127,19 @@ def get_content_stats(driver, content_url):
         'downloads': '//*[@id="photo-page-body"]/div/div/section[1]/div[2]/div/div[1]/div[2]/div[3]/div/div[1]/div',
         'upload date': '//*[@id="photo-page-body"]/div/div/section[1]/div[2]/div/div[2]/div[1]/div[2]/div/small'
     }
-    for _ in range(3):
+    for i in range(3):
         try:
             (WebDriverWait(driver, 20)
              .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
              .click())
             WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
             break
-        except (ElementClickInterceptedException, TimeoutException):
-            logger.exception('Exception caught:')
+        except (ElementClickInterceptedException, TimeoutException) as e:
             driver.get('about:blank')
             time.sleep(5)
             driver.get(content_url)
+            if i == 3:
+                raise e
     get_str_from_xpath = lambda xpath: driver.find_element_by_xpath(xpath).text
     get_date = lambda string: datetime.datetime.strptime(string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
     try:
@@ -152,7 +153,6 @@ def get_content_stats(driver, content_url):
         'likes': [to_number(get_str_from_xpath(xpath['likes']))],
         'upload date': [get_date(get_str_from_xpath(xpath['upload date']))]
     }
-    logger.info('DONE')
     return pd.DataFrame(data, index=[content_url])
 
 def apply_to_split(function, split):
