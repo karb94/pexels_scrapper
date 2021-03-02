@@ -127,18 +127,17 @@ def get_content_stats(driver, content_url):
         'downloads': '//*[@id="photo-page-body"]/div/div/section[1]/div[2]/div/div[1]/div[2]/div[3]/div/div[1]/div',
         'upload date': '//*[@id="photo-page-body"]/div/div/section[1]/div[2]/div/div[2]/div[1]/div[2]/div/small'
     }
-    while True:
+    for _ in range(3):
         try:
-            (WebDriverWait(driver, 10)
+            (WebDriverWait(driver, 20)
              .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
              .click())
-            WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
+            WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
             break
-        except (ElementClickInterceptedException, TimeoutException) as e :
-            logger.warning(f'Warning, exception: {e}')
-            logger.exception(f'Exception: {e}')
+        except (ElementClickInterceptedException, TimeoutException):
+            logger.exception('Exception caught:')
             driver.get('about:blank')
-            time.sleep(2)
+            time.sleep(5)
             driver.get(content_url)
     get_str_from_xpath = lambda xpath: driver.find_element_by_xpath(xpath).text
     get_date = lambda string: datetime.datetime.strptime(string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
@@ -162,12 +161,13 @@ def apply_to_split(function, split):
         try:
             driver = create_driver()
             logger.info('WEB DRIVER initialised')
+            f = partial(function, driver)
+            result = pd.concat(map(f, split))
             break
         except:
-            logger.info('TIMEOUT ERROR')
-            logger.exception('')
-    f = partial(function, driver)
-    result = pd.concat(map(f, split))
+            logger.exception('Exception caught')
+            logger.warning('Web driver corrupted. Initialising a new one.')
+            driver.quit()
     driver.quit()
     return result
 
