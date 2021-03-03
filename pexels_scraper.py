@@ -56,7 +56,7 @@ def create_driver():
             return webdriver.Chrome(options=chrome_options)
             break
         except:
-            logger.exception()
+            logger.exception('')
             logger.warning('Web driver could not be initialised. Retrying...')
 
 def get_collections_urls(driver, artist_url):
@@ -173,7 +173,7 @@ def apply_to_split(function, split):
             result = pd.concat(map(f, split))
             break
         except:
-            logger.exception()
+            logger.exception('')
             logger.warning('Web driver corrupted. Initialising a new one.')
         finally:
             driver.quit()
