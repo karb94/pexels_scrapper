@@ -169,7 +169,6 @@ def apply_to_split(function, split):
         except:
             logger.exception()
             logger.warning('Web driver corrupted. Initialising a new one.')
-            driver.quit()
         finally:
             driver.quit()
     return result
