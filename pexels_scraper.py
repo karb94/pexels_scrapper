@@ -46,6 +46,8 @@ def create_driver():
     chrome_options.browserTimeout = 0
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('window-size=1920,1080')
     chrome_options.add_argument('seleniumProtocol=WebDriver')
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
@@ -165,10 +167,11 @@ def apply_to_split(function, split):
             result = pd.concat(map(f, split))
             break
         except:
-            logger.exception('Exception caught')
+            logger.exception()
             logger.warning('Web driver corrupted. Initialising a new one.')
             driver.quit()
-    driver.quit()
+        finally:
+            driver.quit()
     return result
 
 def parallel_apply(function, array, pool, n_splits=None):
