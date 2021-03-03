@@ -47,11 +47,17 @@ def create_driver():
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--no-sandbox')
+    # chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('window-size=1920,1080')
     chrome_options.add_argument('seleniumProtocol=WebDriver')
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
-    return webdriver.Chrome(options=chrome_options)
+    while True:
+        try: 
+            return webdriver.Chrome(options=chrome_options)
+            break
+        except:
+            logger.exception()
+            logger.warning('Web driver could not be initialised. Retrying...')
 
 def get_collections_urls(driver, artist_url):
     collections_url = artist_url + '/collections/'
