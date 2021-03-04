@@ -142,7 +142,17 @@ def get_content_stats(driver, content_url):
              .click())
             WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
             break
-        except (ElementClickInterceptedException, TimeoutException) as e:
+        except NoSuchElementException:
+            logger.warning(f'Corrupted url: {content_url}')
+            data = {
+                'title': [np.nan],
+                'views': [np.nan],
+                'downloads': [np.nan],
+                'likes': [np.nan],
+                'upload date': [np.nan]
+            }
+            return pd.DataFrame(data, index=[content_url])
+        except (ElementClickInterceptedException, TimeoutException):
             driver.get('about:blank')
             time.sleep(5)
             driver.get(content_url)
