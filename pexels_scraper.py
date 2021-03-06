@@ -17,10 +17,10 @@ from functools import partial
 from itertools import chain
 import math
 import time
-import re
 import sys
 from pathlib import Path
 import logging
+
 
 logs_dir = Path('./logs')
 logs_dir.mkdir(exist_ok=True)
@@ -42,8 +42,8 @@ n_logical_cores = psutil.cpu_count(logical=False)
 def create_driver():
     chrome_options = webdriver.ChromeOptions()
     chrome_options.headless = True
-    chrome_options.javascriptEnabled = True
-    chrome_options.browserTimeout = 0
+    # chrome_options.javascriptEnabled = True
+    # chrome_options.browserTimeout = 0
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     chrome_options.add_argument('--disable-dev-shm-usage')
@@ -54,7 +54,6 @@ def create_driver():
     while True:
         try: 
             return webdriver.Chrome(options=chrome_options)
-            break
         except:
             logger.exception('')
             logger.warning('Web driver could not be initialised. Retrying...')
@@ -74,7 +73,7 @@ def get_collections_urls(driver, artist_url):
     }
     index = [artist_url] * len(collections_dirs)
     df = pd.DataFrame(data, index=index)
-    df['collection url'] = 'https://www.pexels.com' + df['collection url']
+    df['collection url'] = 'https://www.pexels.com' + df['collection url'].astype(str)
     return df
 
 def get_content_urls(driver, collection_url):
@@ -97,7 +96,6 @@ def get_content_urls(driver, collection_url):
     photo_class = 'js-photo-link photo-item__link'
     photos = soup.find_all('a', {'class': photo_class})
     videos = soup.find_all('a', {'class': video_class})
-    videos_dirs = list(map(methodcaller('get', 'href'),  videos))
     content_dirs = list(map(methodcaller('get', 'href'), chain(photos, videos)))
     data = {
         'collection name': [collection_name] * len(content_dirs),
@@ -105,7 +103,7 @@ def get_content_urls(driver, collection_url):
     }
     index = [collection_url] * len(content_dirs)
     df = pd.DataFrame(data, index=index)
-    df['content url'] = 'https://www.pexels.com' + df['content url']
+    df['content url'] = 'https://www.pexels.com' + df['content url'].astype(str)
     logger.info(f'GOT CONTENT from "{artist_name}" in "{collection_name}" collection')
     return df
 
@@ -116,10 +114,8 @@ def to_number(string):
         'B': 1000000000
     }
     if string[-1] in list(d.keys()):
-        for key, val in d.items():
-            if key in string:
-                number = int(float(string.strip(key)) * val)
-                break
+        key = string[-1]
+        number = int(float(string.strip(key)) * d[key])
     else:
         number = int(string)
     return number
@@ -137,10 +133,10 @@ def get_content_stats(driver, content_url):
     }
     for i in range(3):
         try:
-            (WebDriverWait(driver, 20)
+            (WebDriverWait(driver, 5)
              .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
              .click())
-            WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
+            WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
             break
         except NoSuchElementException:
             logger.warning(f'Corrupted url: {content_url}')
@@ -157,7 +153,7 @@ def get_content_stats(driver, content_url):
             time.sleep(5)
             driver.get(content_url)
             if i == 3:
-                raise e
+                raise
     get_str_from_xpath = lambda xpath: driver.find_element_by_xpath(xpath).text
     get_date = lambda string: datetime.datetime.strptime(string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
     try:
@@ -176,8 +172,8 @@ def get_content_stats(driver, content_url):
 def apply_to_split(function, split):
     logger.info(f'SPLIT:\n{split}')
     while True:
+        driver = create_driver()
         try:
-            driver = create_driver()
             logger.info('WEB DRIVER initialised')
             f = partial(function, driver)
             result = pd.concat(map(f, split))
@@ -209,7 +205,6 @@ def main():
     artists_urls_file = sys.argv[1] if len(sys.argv) > 1 else 'artists_urls.csv'
     data_filename = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
     data_path = Path('.') / data_filename
-    data = {}
     artists_urls = np.loadtxt(artists_urls_file, dtype=str)
     if data_path.exists():
         df = pd.read_csv(str(data_path))
@@ -217,7 +212,8 @@ def main():
         artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
     main_logger.info(f'Using {n_logical_cores} CPU processors')
-    pool = mp.Pool(processes=n_logical_cores, initializer=setup_process_logger)
+    n_processes = mp.cpu_count() -2
+    pool = mp.Pool(processes=n_processes, initializer=setup_process_logger)
 
     n_splits = math.ceil(len(artists_urls) / 5)
     artists_splits = np.array_split(artists_urls, n_splits)
