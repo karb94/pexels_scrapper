@@ -133,27 +133,31 @@ def get_content_stats(driver, content_url):
     }
     for i in range(3):
         try:
-            (WebDriverWait(driver, 5)
-             .until(EC.element_to_be_clickable((By.XPATH, xpath['button'])))
-             .click())
-            WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, xpath['views'])))
+            WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, xpath['button']))).click()
+            WebDriverWait(driver, 5).until(
+                EC.visibility_of_element_located((By.XPATH, xpath['views'])))
             break
-        except NoSuchElementException:
-            logger.warning(f'Corrupted url: {content_url}')
-            data = {
-                'title': [np.nan],
-                'views': [np.nan],
-                'downloads': [np.nan],
-                'likes': [np.nan],
-                'upload date': [np.nan]
-            }
-            return pd.DataFrame(data, index=[content_url])
         except (ElementClickInterceptedException, TimeoutException):
+            logger.warning(
+                'Web driver timed out when looking '
+                f'for the info button in {content_url}. Retrying...')
             driver.get('about:blank')
-            time.sleep(5)
+            time.sleep(2)
             driver.get(content_url)
-            if i == 3:
-                raise
+            if i == 2:
+                logger.warning(
+                    f'{content_url} is corrupted. Assigning NA '
+                    'values to this piece of content')
+                data = {
+                    'title': [np.nan],
+                    'views': [np.nan],
+                    'downloads': [np.nan],
+                    'likes': [np.nan],
+                    'upload date': [np.nan]
+                }
+                return pd.DataFrame(data, index=[content_url])
+
     get_str_from_xpath = lambda xpath: driver.find_element_by_xpath(xpath).text
     get_date = lambda string: datetime.datetime.strptime(string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
     try:

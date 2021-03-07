@@ -1,7 +1,8 @@
 import pytest
-from selenium.common.exceptions import (NoSuchElementException,
-    TimeoutException, ElementClickInterceptedException)
 import logging
+import numpy as np
+import pandas as pd
+from pandas.testing import assert_frame_equal
 
 import pexels_scraper
 
@@ -18,9 +19,25 @@ def driver():
 def logger():
     return logging.getLogger()
 
-def test_get_content_stats(driver, logger):
+@pytest.fixture
+def bad_url():
+    return 'https://www.pexels.com/video/cute-blonde-drinking-young-4720604/'
+
+@pytest.fixture
+def nan_stats_df():
+    data = {
+        'title': [np.nan],
+        'views': [np.nan],
+        'downloads': [np.nan],
+        'likes': [np.nan],
+        'upload date': [np.nan]
+    }
+    return pd.DataFrame(data)
+
+def test_get_content_stats(bad_url, nan_stats_df, driver, logger):
+    test_df = nan_stats_df.reindex([bad_url])
+    print(test_df)
     pexels_scraper.logger = logger
-    url = 'https://www.pexels.com/video/cute-blonde-drinking-young-4720604/'
-    with pytest.raises(NoSuchElementException):
-        print('hefs')
-        _ = pexels_scraper.get_content_stats(driver, url)
+    # with pytest.raises(NoSuchElementException):
+    df = pexels_scraper.get_content_stats(driver, bad_url)
+    assert_frame_equal(df, test_df)
