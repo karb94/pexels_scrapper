@@ -6,11 +6,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (NoSuchElementException,
-    TimeoutException, ElementClickInterceptedException)
+                                        TimeoutException, ElementClickInterceptedException)
 import pandas as pd
 import numpy as np
 import datetime
-import multiprocessing as mp
+import threading as t
+from concurrent.futures import ThreadPoolExecutor
 import psutil
 from operator import methodcaller
 from functools import partial
@@ -25,11 +26,12 @@ import logging
 logs_dir = Path('./logs')
 logs_dir.mkdir(exist_ok=True)
 
+
 def setup_logger(name):
     log_file = logs_dir / (name + '.log')
-    handler = logging.FileHandler(log_file)        
-    logfmt='[%(asctime)s] %(levelname)s: %(message)s'
-    datefmt='%Y/%m/%d %H:%M:%S'
+    handler = logging.FileHandler(log_file)
+    logfmt = '[%(asctime)s] %(levelname)s: %(message)s'
+    datefmt = '%Y/%m/%d %H:%M:%S'
     formatter = logging.Formatter(logfmt, datefmt)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
@@ -37,73 +39,93 @@ def setup_logger(name):
     logger.addHandler(handler)
     return logger
 
-n_logical_cores = psutil.cpu_count(logical=False)
 
-def create_driver():
+n_physical_cores = psutil.cpu_count(logical=False)
+
+
+def create_driver(logger):
     chrome_options = webdriver.ChromeOptions()
     chrome_options.headless = True
     # chrome_options.javascriptEnabled = True
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option(
+        "excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     chrome_options.add_argument('--disable-dev-shm-usage')
     # chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('window-size=1920,1080')
     chrome_options.add_argument('seleniumProtocol=WebDriver')
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
+    chrome_options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
     while True:
-        try: 
-            return webdriver.Chrome(options=chrome_options)
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+            logger.info( 'Webdriver initialised correctly.')
+            return driver
         except:
-            logger.exception('Web driver could not be initialised. Retrying...')
+            logger.exception(
+                'Web driver could not be initialised. Retrying...')
 
-def get_collections_urls(driver, artist_url):
+
+def get_collections_urls(driver, logger, artist_url):
     collections_url = artist_url + '/collections/'
     driver.get(collections_url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     artist_name = driver.find_element_by_tag_name('h1').text
     logger.info(f'COLLECTIONS from "{artist_name}":')
-    matches = soup.find_all('a', {'class': 'discover__collections__collection'})
-    not_likes = lambda collection: 'likes' not in collection
-    collections_dirs = list(filter(not_likes, map(methodcaller('get', 'href'), matches)))
+    matches = soup.find_all(
+        'a', {'class': 'discover__collections__collection'})
+
+    def not_likes(collection): return 'likes' not in collection
+    collections_dirs = list(
+        filter(not_likes, map(methodcaller('get', 'href'), matches)))
     data = {
         'artist name': [artist_name] * len(collections_dirs),
         'collection url': collections_dirs
     }
     index = [artist_url] * len(collections_dirs)
     df = pd.DataFrame(data, index=index)
-    df['collection url'] = 'https://www.pexels.com' + df['collection url'].astype(str)
+    df['collection url'] = 'https://www.pexels.com' + \
+        df['collection url'].astype(str)
     return df
 
-def get_content_urls(driver, collection_url):
+
+def get_content_urls(driver, logger, collection_url):
     driver.get(collection_url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     collection_name = soup.find('h1').get_text().strip('\n')
     artist_name = driver.find_element_by_tag_name('span').text
-    logger.info(f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
+    logger.info(
+        f'FETCHING CONTENT from "{artist_name}" in "{collection_name}" collection')
 
     old_scroll_height = 0
-    new_scroll_height = driver.execute_script("return document.body.scrollHeight;")  
+    new_scroll_height = driver.execute_script(
+        "return document.body.scrollHeight;")
     while old_scroll_height < new_scroll_height:
         old_scroll_height = new_scroll_height
-        driver.execute_script(f"window.scrollTo(0, {old_scroll_height});")  
+        driver.execute_script(f"window.scrollTo(0, {old_scroll_height});")
         time.sleep(1)
-        new_scroll_height = driver.execute_script("return document.body.scrollHeight;")  
+        new_scroll_height = driver.execute_script(
+            "return document.body.scrollHeight;")
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     video_class = 'js-photo-link js-photo-item__link photo-item__link'
     photo_class = 'js-photo-link photo-item__link'
     photos = soup.find_all('a', {'class': photo_class})
     videos = soup.find_all('a', {'class': video_class})
-    content_dirs = list(map(methodcaller('get', 'href'), chain(photos, videos)))
+    content_dirs = list(
+        map(methodcaller('get', 'href'), chain(photos, videos)))
     data = {
         'collection name': [collection_name] * len(content_dirs),
         'content url': content_dirs
     }
     index = [collection_url] * len(content_dirs)
     df = pd.DataFrame(data, index=index)
-    df['content url'] = 'https://www.pexels.com' + df['content url'].astype(str)
-    logger.info(f'GOT CONTENT from "{artist_name}" in "{collection_name}" collection')
+    df['content url'] = 'https://www.pexels.com' + \
+        df['content url'].astype(str)
+    logger.info(
+        f'GOT CONTENT from "{artist_name}" in "{collection_name}" collection')
     return df
+
 
 def to_number(string):
     d = {
@@ -118,7 +140,8 @@ def to_number(string):
         number = int(string)
     return number
 
-def get_content_stats(driver, content_url):
+
+def get_content_stats(driver, logger, content_url):
     logger.info(f'SCRAPING stats from {content_url}')
     driver.get(content_url)
     xpath = {
@@ -156,8 +179,10 @@ def get_content_stats(driver, content_url):
                 }
                 return pd.DataFrame(data, index=[content_url])
 
-    get_str_from_xpath = lambda xpath: driver.find_element_by_xpath(xpath).text
-    get_date = lambda string: datetime.datetime.strptime(string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
+    def get_str_from_xpath(
+        xpath): return driver.find_element_by_xpath(xpath).text
+    def get_date(string): return datetime.datetime.strptime(
+        string, "Uploaded at %B %d, %Y").strftime('%Y-%m-%d')
     try:
         title = driver.find_element_by_xpath(xpath['title']).text
     except NoSuchElementException:
@@ -171,39 +196,29 @@ def get_content_stats(driver, content_url):
     }
     return pd.DataFrame(data, index=[content_url])
 
-def apply_to_split(function, split):
+def apply_to_split(function, driver, split, logger):
     logger.info(f'SPLIT:\n{split}')
-    while True:
-        driver = create_driver()
-        try:
-            logger.info('WEB DRIVER initialised')
-            f = partial(function, driver)
-            result = pd.concat(map(f, split))
-            break
-        except:
-            logger.exception('Web driver corrupted. Initialising a new one...')
-        finally:
-            driver.quit()
+    f = partial(function, driver, logger)
+    result = pd.concat(map(f, split))
     return result
 
-def parallel_apply(function, array, pool, n_splits=None):
+def threaded_apply(function, drivers, array, loggers, n_splits=None):
     if n_splits is None:
-        n_splits = 4*n_logical_cores if len(array) > 4*n_logical_cores else len(array)
-    splits = np.array_split(array, n_splits)
-    jobs = []
-    for split in splits:
-        jobs.append(pool.apply_async(apply_to_split, (function, split)))
-    return pd.concat(map(methodcaller('get'), jobs))
+        n_splits = min(len(drivers), len(array))
+    else:
+        n_splits = min(n_splits, len(array))
 
-def setup_process_logger():
-    log_name = mp.current_process().name
-    global logger
-    logger = setup_logger(log_name)
-    logger.info(f'Processes {log_name} initialised')
+    splits = np.array_split(array, n_splits)
+    f = partial(apply_to_split, function)
+    with ThreadPoolExecutor(max_workers=len(drivers)) as executor:
+        results = executor.map(f, drivers, splits, loggers)
+        return pd.concat(results)
+
 
 def main():
     main_logger = setup_logger('main')
-    artists_urls_file = sys.argv[1] if len(sys.argv) > 1 else 'artists_urls.csv'
+    artists_urls_file = sys.argv[1] if len(
+        sys.argv) > 1 else 'artists_urls.csv'
     data_filename = sys.argv[2] if len(sys.argv) > 2 else 'data.csv'
     data_path = Path('.') / data_filename
     artists_urls = np.loadtxt(artists_urls_file, dtype=str, ndmin=1)
@@ -212,37 +227,46 @@ def main():
         completed = df['artist url'].unique()
         artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
-    main_logger.info(f'Using {n_logical_cores} CPU processors')
-    n_processes = mp.cpu_count() -2
-    pool = mp.Pool(processes=n_processes, initializer=setup_process_logger)
-
-    n_splits = math.ceil(artists_urls.size / 5)
+    n_threads = n_physical_cores // 2
+    main_logger.info(f'Using {n_threads} threads')
+    drivers = [create_driver(main_logger) for _ in range(n_threads)]
+    loggers = [setup_logger(str(i)) for i in range(n_threads)]
+    n_splits = math.ceil(len(artists_urls) / 5)
     artists_splits = np.array_split(artists_urls, n_splits)
-    for artists_split in artists_splits:
-        main_logger.info(f'SCRAPING the following artists:\n{artists_split}')
-        collections = parallel_apply(get_collections_urls, artists_split, pool)
-        if len(collections) == 0:
-            main_logger.info('No collections in this split')
-            continue
-        main_logger.info('FINISHED scraping for collections urls')
-        content = parallel_apply(get_content_urls,
-                                 collections['collection url'], pool)
-        main_logger.info('FINISHED scraping for content urls')
-        stats = parallel_apply(get_content_stats, content['content url'], pool)
-        main_logger.info('FINISHED scraping content stats')
-        joined_df = (
-            collections
-            .join(content, on='collection url', how='right')
-            .join(stats, on='content url', how='left')
-         )
-        joined_df.index.name = 'artist url'
-        header = False if data_path.exists() else True
-        main_logger.info(f'SAVING data to "{str(data_path)}"')
-        joined_df.to_csv(data_path, header=header, mode='a')
 
-    pool.close()
-    pool.join()
+    try:
+        for artists_split in artists_splits:
+            main_logger.info(f'SCRAPING the following artists:\n{artists_split}')
+            collections = threaded_apply(get_collections_urls, drivers,
+                                         artists_split, loggers, n_splits)
+            if len(collections) == 0:
+                main_logger.info('No collections in this split')
+                continue
+            main_logger.info('FINISHED scraping for collections urls')
+            content = threaded_apply(
+                get_content_urls, drivers, collections['collection url'], loggers)
+            main_logger.info('FINISHED scraping for content urls')
+            stats = threaded_apply(
+                get_content_stats, drivers, content['content url'], loggers)
+            main_logger.info('FINISHED scraping content stats')
+            main_logger.info('Joining data')
+            joined_df = (
+                collections
+                .join(content, on='collection url', how='right')
+                .join(stats, on='content url', how='left')
+            )
+            main_logger.info('Changing index')
+            joined_df.index.name = 'artist url'
+            main_logger.info('Before saving')
+            header = False if data_path.exists() else True
+            main_logger.info(f'SAVING data to "{str(data_path)}"')
+            joined_df.to_csv(data_path, header=header, mode='a')
+    finally:
+        main_logger.info('Closing web drivers')
+        for driver in drivers:
+            driver.quit()
+        main_logger.info('All web drivers savely closed')
+
 
 if __name__ == '__main__':
     main()
-
