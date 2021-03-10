@@ -255,7 +255,7 @@ def main():
         completed = df['artist url'].unique()
         artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
-    n_threads = n_physical_cores * 4
+    n_threads = n_physical_cores * 3
     main_logger.info(f'Using {n_threads} threads')
     
     n_splits = math.ceil(len(artists_urls) / 5)
