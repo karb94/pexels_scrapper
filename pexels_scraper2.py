@@ -71,7 +71,7 @@ def vectorize(function):
         if not isinstance(array, np.ndarray):
             array = np.array(array, ndmin=1)
         f = partial(function, driver, logger)
-        return *map(f, array),
+        return list(map(f, array))
     return wrapper
 
 
