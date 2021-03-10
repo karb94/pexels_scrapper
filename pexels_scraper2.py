@@ -71,7 +71,7 @@ def vectorize(function):
         if not isinstance(array, np.ndarray):
             array = np.array(array, ndmin=1)
         f = partial(function, driver, logger)
-        return map(f, array)
+        return *map(f, array),
     return wrapper
 
 
@@ -210,33 +210,35 @@ def get_content_stats(driver, logger, content_url):
 
 
 class ThreadedDrivers:
-    def __init__(self, n_threads):
+    def __init__(self, n_threads, main_logger):
         self.loggers = [setup_logger(str(i)) for i in range(n_threads)]
         self.drivers = [create_driver(self.loggers[i]) for i in range(n_threads)]
         self.locks = [t.Lock() for _ in range(n_threads)]
+        self.main_logger = main_logger
 
     def acquire_lock(self):
         for i, lock in enumerate(self.locks):
             if lock.acquire(blocking=False):
-                self.loggers[i].info(f'Lock {i} successfully acquired')
+                self.loggers[i].info(f'Lock {i} acquired')
                 return i
         raise IndexError('No more drivers available')
 
     def func_wrapper(self, function, array):
-        self.loggers[n_lock].info('Apply function to chunk')
         n_lock = self.acquire_lock()
         driver = self.drivers[n_lock]
         logger = self.loggers[n_lock]
         result = function(driver, logger, array)
         self.locks[n_lock].release()
-        self.loggers[n_lock].info('Finished chunk')
+        self.loggers[n_lock].info(f'Lock {n_lock} released')
         return result
 
     def map(self, function, array):
         f = partial(ThreadedDrivers.func_wrapper, self, function)
         max_chunksize = max(len(array)//(len(self.drivers)), 1)
-        chunksize = min(max_chunksize, 10)
-        print(chunksize)
+        chunksize = min(max_chunksize, 100)
+        self.main_logger.info(f'Array length: {len(array)}')
+        self.main_logger.info(f'Max chunksize: {max_chunksize}')
+        self.main_logger.info(f'chunksize: {max_chunksize}')
         with ThreadPoolExecutor(max_workers=len(self.drivers)) as executor:
             return pd.concat(chain.from_iterable(executor.map(f, array, chunksize=chunksize)))
 
@@ -258,31 +260,28 @@ def main():
     
     n_splits = math.ceil(len(artists_urls) / 5)
     artists_splits = np.array_split(artists_urls, n_splits)
-    drivers = ThreadedDrivers(n_threads)
+    drivers = ThreadedDrivers(n_threads, main_logger)
 
     try:
         for artists_split in artists_splits:
-            main_logger.info(f'SCRAPING the following artists:\n{artists_split}')
+            main_logger.info(f'Scraping collections of the following artists:\n{artists_split}')
             collections = drivers.map(get_collections_urls, artists_split)
             if len(collections) == 0:
                 main_logger.info('No collections in this split')
                 continue
-            main_logger.info('FINISHED scraping for collections urls')
+            main_logger.info('Scraping content urls from collections')
             content = drivers.map(get_content_urls, collections['collection url'])
-            main_logger.info('FINISHED scraping for content urls')
+            main_logger.info('Scraping content statistics')
             stats = drivers.map(get_content_stats, content['content url'])
-            main_logger.info('FINISHED scraping content stats')
             main_logger.info('Joining data')
             joined_df = (
                 collections
                 .join(content, on='collection url', how='right')
                 .join(stats, on='content url', how='left')
             )
-            main_logger.info('Changing index')
             joined_df.index.name = 'artist url'
-            main_logger.info('Before saving')
             header = False if data_path.exists() else True
-            main_logger.info(f'SAVING data to "{str(data_path)}"')
+            main_logger.info(f'Saving data to "{str(data_path)}"')
             joined_df.to_csv(data_path, header=header, mode='a')
     finally:
         main_logger.info('Closing web drivers')
