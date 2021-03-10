@@ -238,7 +238,7 @@ class ThreadedDrivers:
         chunksize = min(max_chunksize, 100)
         self.main_logger.info(f'Array length: {len(array)}')
         self.main_logger.info(f'Max chunksize: {max_chunksize}')
-        self.main_logger.info(f'chunksize: {max_chunksize}')
+        self.main_logger.info(f'chunksize: {chunksize}')
         with ThreadPoolExecutor(max_workers=len(self.drivers)) as executor:
             return pd.concat(chain.from_iterable(executor.map(f, array, chunksize=chunksize)))
 
@@ -255,7 +255,7 @@ def main():
         completed = df['artist url'].unique()
         artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
-    n_threads = n_physical_cores * 2
+    n_threads = n_physical_cores * 4
     main_logger.info(f'Using {n_threads} threads')
     
     n_splits = math.ceil(len(artists_urls) / 5)
