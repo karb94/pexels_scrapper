@@ -14,7 +14,8 @@ import threading as t
 from concurrent.futures import ThreadPoolExecutor
 import psutil
 from operator import methodcaller
-from functools import partial
+from functools import partial, partialmethod
+from itertools import chain
 from itertools import chain
 import math
 import time
@@ -65,7 +66,16 @@ def create_driver(logger):
             logger.exception(
                 'Web driver could not be initialised. Retrying...')
 
+def vectorize(function):
+    def wrapper(driver, logger, array):
+        if not isinstance(array, np.ndarray):
+            array = np.array(array, ndmin=1)
+        f = partial(function, driver, logger)
+        return map(f, array)
+    return wrapper
 
+
+@vectorize
 def get_collections_urls(driver, logger, artist_url):
     collections_url = artist_url + '/collections/'
     driver.get(collections_url)
@@ -89,6 +99,7 @@ def get_collections_urls(driver, logger, artist_url):
     return df
 
 
+@vectorize
 def get_content_urls(driver, logger, collection_url):
     driver.get(collection_url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -141,6 +152,7 @@ def to_number(string):
     return number
 
 
+@vectorize
 def get_content_stats(driver, logger, content_url):
     logger.info(f'SCRAPING stats from {content_url}')
     driver.get(content_url)
@@ -196,23 +208,37 @@ def get_content_stats(driver, logger, content_url):
     }
     return pd.DataFrame(data, index=[content_url])
 
-def apply_to_split(function, driver, split, logger):
-    logger.info(f'SPLIT:\n{split}')
-    f = partial(function, driver, logger)
-    result = pd.concat(map(f, split))
-    return result
 
-def threaded_apply(function, drivers, array, loggers, n_splits=None):
-    if n_splits is None:
-        n_splits = min(len(drivers), len(array))
-    else:
-        n_splits = min(n_splits, len(array))
+class ThreadedDrivers:
+    def __init__(self, n_threads):
+        self.loggers = [setup_logger(str(i)) for i in range(n_threads)]
+        self.drivers = [create_driver(self.loggers[i]) for i in range(n_threads)]
+        self.locks = [t.Lock() for _ in range(n_threads)]
 
-    splits = np.array_split(array, n_splits)
-    f = partial(apply_to_split, function)
-    with ThreadPoolExecutor(max_workers=len(drivers)) as executor:
-        results = executor.map(f, drivers, splits, loggers)
-        return pd.concat(results)
+    def acquire_lock(self):
+        for i, lock in enumerate(self.locks):
+            if lock.acquire(blocking=False):
+                self.loggers[i].info(f'Lock {i} successfully acquired')
+                return i
+        raise IndexError('No more drivers available')
+
+    def func_wrapper(self, function, array):
+        self.loggers[n_lock].info('Apply function to chunk')
+        n_lock = self.acquire_lock()
+        driver = self.drivers[n_lock]
+        logger = self.loggers[n_lock]
+        result = function(driver, logger, array)
+        self.locks[n_lock].release()
+        self.loggers[n_lock].info('Finished chunk')
+        return result
+
+    def map(self, function, array):
+        f = partial(ThreadedDrivers.func_wrapper, self, function)
+        max_chunksize = max(len(array)//(len(self.drivers)), 1)
+        chunksize = min(max_chunksize, 10)
+        print(chunksize)
+        with ThreadPoolExecutor(max_workers=len(self.drivers)) as executor:
+            return pd.concat(chain.from_iterable(executor.map(f, array, chunksize=chunksize)))
 
 
 def main():
@@ -227,27 +253,24 @@ def main():
         completed = df['artist url'].unique()
         artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
-    n_threads = n_physical_cores // 2
+    n_threads = n_physical_cores * 2
     main_logger.info(f'Using {n_threads} threads')
-    drivers = [create_driver(main_logger) for _ in range(n_threads)]
-    loggers = [setup_logger(str(i)) for i in range(n_threads)]
+    
     n_splits = math.ceil(len(artists_urls) / 5)
     artists_splits = np.array_split(artists_urls, n_splits)
+    drivers = ThreadedDrivers(n_threads)
 
     try:
         for artists_split in artists_splits:
             main_logger.info(f'SCRAPING the following artists:\n{artists_split}')
-            collections = threaded_apply(get_collections_urls, drivers,
-                                         artists_split, loggers, n_splits)
+            collections = drivers.map(get_collections_urls, artists_split)
             if len(collections) == 0:
                 main_logger.info('No collections in this split')
                 continue
             main_logger.info('FINISHED scraping for collections urls')
-            content = threaded_apply(
-                get_content_urls, drivers, collections['collection url'], loggers)
+            content = drivers.map(get_content_urls, collections['collection url'])
             main_logger.info('FINISHED scraping for content urls')
-            stats = threaded_apply(
-                get_content_stats, drivers, content['content url'], loggers)
+            stats = drivers.map(get_content_stats, content['content url'])
             main_logger.info('FINISHED scraping content stats')
             main_logger.info('Joining data')
             joined_df = (
@@ -263,7 +286,7 @@ def main():
             joined_df.to_csv(data_path, header=header, mode='a')
     finally:
         main_logger.info('Closing web drivers')
-        for driver in drivers:
+        for driver in drivers.drivers:
             driver.quit()
         main_logger.info('All web drivers savely closed')
 
