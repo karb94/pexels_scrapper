@@ -235,7 +235,7 @@ class ThreadedDrivers:
     def map(self, function, array):
         f = partial(ThreadedDrivers.func_wrapper, self, function)
         max_chunksize = max(len(array)//(len(self.drivers)), 1)
-        chunksize = min(max_chunksize, 100)
+        chunksize = min(max_chunksize, 2000)
         self.main_logger.info(f'Array length: {len(array)}')
         self.main_logger.info(f'Max chunksize: {max_chunksize}')
         self.main_logger.info(f'chunksize: {chunksize}')
