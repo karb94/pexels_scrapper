@@ -70,13 +70,12 @@ def vectorize(function):
     def wrapper(driver, logger, array):
         if not isinstance(array, np.ndarray):
             array = np.array(array, ndmin=1)
+        f = partial(function, driver, logger)
         while True:
             try:
-                f = partial(function, driver, logger)
-                break
+                return list(map(f, array))
             except TimeoutException:
                 logger.exception('Timeout exception')
-        return list(map(f, array))
     return wrapper
 
 
