@@ -14,7 +14,7 @@ import threading as t
 from concurrent.futures import ThreadPoolExecutor
 import psutil
 from operator import methodcaller
-from functools import partial, partialmethod
+from functools import partial
 from itertools import chain
 from itertools import chain
 import math
