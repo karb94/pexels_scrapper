@@ -20,6 +20,7 @@ from itertools import chain
 import math
 import time
 import sys
+import gc
 from pathlib import Path
 import logging
 
@@ -259,7 +260,7 @@ def main():
         completed = df['artist url'].unique()
         artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
-    n_threads = n_physical_cores #* 3
+    n_threads = n_physical_cores * 2
     main_logger.info(f'Using {n_threads} threads')
     
     n_splits = math.ceil(len(artists_urls) / 5)
@@ -287,6 +288,7 @@ def main():
             header = False if data_path.exists() else True
             main_logger.info(f'Saving data to "{str(data_path)}"')
             joined_df.to_csv(data_path, header=header, mode='a')
+            gc.collect()
     finally:
         main_logger.info('Closing web drivers')
         for driver in drivers.drivers:
