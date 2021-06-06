@@ -1,6 +1,6 @@
 #! /bin/sh
 
-VM_NAME='scraper'
+VM_NAME="$1"
 
 IMAGE_PROJECT='debian-cloud'
 IMAGE_FAMILY='debian-10'
