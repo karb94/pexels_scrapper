@@ -90,9 +90,13 @@ def get_collections_urls(driver, logger, artist_url):
     matches = soup.find_all(
         'a', {'class': 'discover__collections__collection'})
 
-    def not_likes(collection): return 'likes' not in collection
+    # likes and featured uploads should not be included
+    def collections_filter(collection):
+        likes_collection = 'likes' in collection
+        featured_uploads_collection = 'featured-uploads' in collection
+        return not likes_collection and not featured_uploads_collection
     collections_dirs = list(
-        filter(not_likes, map(methodcaller('get', 'href'), matches)))
+        filter(collections_filter, map(methodcaller('get', 'href'), matches)))
     data = {
         'artist name': [artist_name] * len(collections_dirs),
         'collection url': collections_dirs
@@ -260,7 +264,7 @@ def main():
         completed = df['artist url'].unique()
         artists_urls = artists_urls[~np.isin(artists_urls, completed)]
 
-    n_threads = n_physical_cores * 2
+    n_threads = n_physical_cores #* 2
     main_logger.info(f'Using {n_threads} threads')
     
     n_splits = math.ceil(len(artists_urls) / 5)
@@ -271,6 +275,7 @@ def main():
         for artists_split in artists_splits:
             main_logger.info(f'Scraping collections of the following artists:\n{artists_split}')
             collections = drivers.map(get_collections_urls, artists_split)
+            collections
             if len(collections) == 0:
                 main_logger.info('No collections in this split')
                 continue

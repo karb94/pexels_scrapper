@@ -1,3 +1,6 @@
+#! /bin/sh
+
+COMMAND='
 git clone https://github.com/karb94/pexels_scrapper.git &&
 cd pexels_scrapper &&
 python3 -m venv env &&
@@ -8,4 +11,7 @@ curl -sSO 'https://chromedriver.storage.googleapis.com/90.0.4430.24/chromedriver
 # curl -sSO 'https://chromedriver.storage.googleapis.com/91.0.4472.19/chromedriver_linux64.zip' &&
 unzip chromedriver_linux64.zip && rm chromedriver_linux64.zip &&
 mv chromedriver env/bin/ &&
-setsid -f python3 pexels_scraper2.py >output 2>&1 &
+rm -f data.csv &&
+setsid -f python3 pexels_scraper2.py >output 2>&1'
+
+gcloud compute ssh "$1" --command="$COMMAND"

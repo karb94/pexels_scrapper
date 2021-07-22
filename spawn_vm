@@ -29,3 +29,6 @@ gcloud compute instances create "$VM_NAME" \
     --custom-cpu="$CUSTOM_CPU" \
     --custom-memory="$CUSTOM_MEMORY" \
     --metadata=startup-script="$STARTUP_SCRIPT"
+
+echo Virtual Machine status:
+gcloud compute instances describe scraper-vm --format="value(status)"
